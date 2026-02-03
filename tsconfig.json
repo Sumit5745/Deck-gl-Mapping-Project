@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@deck.gl/core": ["node_modules/@deck.gl/core/typed"],
+      "@deck.gl/react": ["node_modules/@deck.gl/react/typed"],
+      "@deck.gl/layers": ["node_modules/@deck.gl/layers/typed"],
+      "@deck.gl/geo-layers": ["node_modules/@deck.gl/geo-layers/typed"],
+      "@deck.gl/aggregation-layers": ["node_modules/@deck.gl/aggregation-layers/typed"]
+    },
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "exclude": ["src/deckgl-react.d.ts", "src/deckgl-core.d.ts", "src/deckgl-layers.d.ts"]
+}
