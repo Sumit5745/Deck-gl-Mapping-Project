@@ -53,4 +53,3 @@ This project keeps all heavy data derivations (`useMemo` for 10k points, cluster
 - `src/layers.ts`: Deck.gl layer configuration
 - `src/data.ts`: sample data + generator
 - `src/ui/*`: UI components (panel, legend, tooltip)
-- `docs/*`: line-by-line explanations for every file
