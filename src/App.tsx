@@ -95,7 +95,7 @@ function getFocusPosition(object: any, layerId: string | null): LngLat | null {
   }
 
   if (layerId === 'trips') {
-    return object.path?.[0] ? [object.path[0][0], object.path[0][1]] : null;
+    return object.path?.[0]?.coordinates ?? null;
   }
 
   if (layerId === 'hexagon') {
@@ -120,6 +120,13 @@ export default function App() {
   const [clusterEnabled, setClusterEnabled] = useState(true);
   const [useLargeDataset, setUseLargeDataset] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState(CATEGORY_OPTIONS[0]);
+  const effectiveShowPoints = showHexagon ? false : showPoints;
+
+  useEffect(() => {
+    if (showHexagon && showPoints) {
+      setShowPoints(false);
+    }
+  }, [showHexagon, showPoints]);
 
   const largePoints = useMemo(() => generateRandomPoints(LARGE_DATASET_COUNT), []);
   const activePoints = useMemo(() => {
@@ -281,30 +288,36 @@ export default function App() {
     [setTileCacheCount]
   );
 
+  const handleTileLoad = useCallback(() => {
+    setTileCacheCount(tileCacheRef.current.size);
+  }, [setTileCacheCount]);
+
   const baseLayers = useMemo(() => {
     return buildBaseLayers({
       points: activePoints,
       clusters,
       polygons: SAMPLE_POLYGONS,
       routes: SAMPLE_ROUTES,
-      showPoints,
+      showPoints: effectiveShowPoints,
       showClusters: clusterEnabled,
       showPolygons,
       showRoutes,
       showHexagon,
       getTileData,
+      onTileLoad: handleTileLoad,
       choroplethMin: choroplethRange.min,
       choroplethMax: choroplethRange.max
     });
   }, [
     activePoints,
     clusters,
-    showPoints,
+    effectiveShowPoints,
     clusterEnabled,
     showPolygons,
     showRoutes,
     showHexagon,
     getTileData,
+    handleTileLoad,
     choroplethRange.min,
     choroplethRange.max
   ]);

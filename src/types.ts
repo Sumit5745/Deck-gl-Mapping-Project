@@ -38,9 +38,14 @@ export type RouteFeature = {
   };
 };
 
+export type TripPoint = {
+  coordinates: LngLat;
+  timestamp: number;
+};
+
 export type TripDatum = {
   vendor: string;
-  path: [number, number, number][];
+  path: TripPoint[];
 };
 
 export type TilePoint = {

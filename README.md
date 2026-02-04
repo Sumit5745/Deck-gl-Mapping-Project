@@ -1,5 +1,7 @@
 # Deck.gl Mapping Task
 
+![alt text](image.png)
+
 A compact, production-minded Deck.gl demo that covers points + clustering, choropleth polygons with legend, routes, animated trips, and hexagon aggregation. It uses MapLibre for a token-free basemap and includes a 10k point generator for performance testing.
 
 ## What You Can Demo
@@ -9,6 +11,7 @@ A compact, production-minded Deck.gl demo that covers points + clustering, choro
 - Routes/flows (ArcLayer) with width by volume
 - Animated trips (TripsLayer) with play/pause + scrub
 - Hexagon aggregation (HexagonLayer) for density
+- TileLayer incremental loading with caching (subtle tile grid overlay)
 - Tooltip hover + click-to-focus camera
 
 ## Quick Start
@@ -31,6 +34,7 @@ This demo uses MapLibre + a public Carto basemap, so **no Mapbox token is requir
 - Filter by category
 - Turn clustering on/off
 - Play/pause + scrub trip animation time
+- Auto switch between raw points and hex aggregation
 
 ## Data Notes
 

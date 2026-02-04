@@ -1,4 +1,4 @@
-import { ArcLayer, GeoJsonLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { ArcLayer, GeoJsonLayer, ScatterplotLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import { TileLayer, TripsLayer } from '@deck.gl/geo-layers';
 import { HexagonLayer } from '@deck.gl/aggregation-layers';
 import type { Layer } from '@deck.gl/core';
@@ -126,6 +126,7 @@ export type BaseLayersParams = {
   showRoutes: boolean;
   showHexagon: boolean;
   getTileData: (tile: TileLoadProps) => TilePoint[] | Promise<TilePoint[]>;
+  onTileLoad?: (tile: unknown) => void;
   choroplethMin: number;
   choroplethMax: number;
 };
@@ -226,7 +227,34 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
       maxCacheSize: TILE_CACHE_MAX,
       maxRequests: TILE_MAX_REQUESTS,
       getTileData: params.getTileData,
-      renderSubLayers: () => null
+      onTileLoad: params.onTileLoad,
+      renderSubLayers: (subLayerProps) => {
+        const { tile, id } = subLayerProps;
+        const bbox = tile?.bbox as { west: number; south: number; east: number; north: number } | undefined;
+        if (!bbox || !('west' in bbox)) {
+          return null;
+        }
+
+        const polygon = [
+          [
+            [bbox.west, bbox.south],
+            [bbox.east, bbox.south],
+            [bbox.east, bbox.north],
+            [bbox.west, bbox.north],
+            [bbox.west, bbox.south]
+          ]
+        ];
+
+        return new SolidPolygonLayer({
+          id: `${id}-grid`,
+          data: [polygon],
+          getPolygon: (item) => item,
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 1,
+          getLineColor: [15, 23, 42, 50]
+        });
+      }
     })
   );
 
@@ -266,8 +294,9 @@ export function buildTripsLayer(params: TripsLayerParams): Layer | null {
   return new TripsLayer<TripDatum>({
     id: 'trips',
     data: params.trips,
-    getPath: (trip): PathGeometry => trip.path.map((point) => [point[0], point[1]]) as unknown as PathGeometry,
-    getTimestamps: (trip) => trip.path.map((point) => point[2] - params.timeOffset),
+    getPath: (trip): PathGeometry =>
+      trip.path.map((point) => [point.coordinates[0], point.coordinates[1]]) as unknown as PathGeometry,
+    getTimestamps: (trip) => trip.path.map((point) => point.timestamp - params.timeOffset),
     getColor: TRIPS_COLOR,
     opacity: TRIPS_OPACITY,
     widthMinPixels: TRIPS_WIDTH_MIN,

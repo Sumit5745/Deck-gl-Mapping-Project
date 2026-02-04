@@ -109,17 +109,17 @@ export const SAMPLE_TRIPS: TripDatum[] = [
   {
     vendor: 'vehicle-1',
     path: [
-      [-122.406417, 37.785834, 1672531200000],
-      [-122.404, 37.7865, 1672531260000],
-      [-122.401, 37.788, 1672531320000]
+      { coordinates: [-122.406417, 37.785834], timestamp: 1672531200000 },
+      { coordinates: [-122.404, 37.7865], timestamp: 1672531260000 },
+      { coordinates: [-122.401, 37.788], timestamp: 1672531320000 }
     ]
   },
   {
     vendor: 'vehicle-2',
     path: [
-      [-122.412345, 37.781122, 1672531200000],
-      [-122.41, 37.783, 1672531260000],
-      [-122.4075, 37.785, 1672531320000]
+      { coordinates: [-122.412345, 37.781122], timestamp: 1672531200000 },
+      { coordinates: [-122.41, 37.783], timestamp: 1672531260000 },
+      { coordinates: [-122.4075, 37.785], timestamp: 1672531320000 }
     ]
   }
 ];
@@ -203,7 +203,7 @@ export function getTripTimeRange(trips: TripDatum[]): { start: number; end: numb
 
   trips.forEach((trip) => {
     trip.path.forEach((point) => {
-      const time = point[2];
+      const time = point.timestamp;
       start = Math.min(start, time);
       end = Math.max(end, time);
     });
