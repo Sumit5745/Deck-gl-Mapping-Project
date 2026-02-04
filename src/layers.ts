@@ -1,18 +1,22 @@
 import { ArcLayer, GeoJsonLayer, ScatterplotLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import { TileLayer, TripsLayer } from '@deck.gl/geo-layers';
+import type { TripsLayerProps } from '@deck.gl/geo-layers';
 import { HexagonLayer } from '@deck.gl/aggregation-layers';
 import type { Layer } from '@deck.gl/core';
-import type { PathGeometry } from '@deck.gl/layers/typed/path-layer/path';
 import type { TileLoadProps } from '@deck.gl/geo-layers/typed/tileset-2d';
+import type { PolygonGeometry } from '@deck.gl/layers/typed/solid-polygon-layer/polygon';
+import type { Feature, GeoJsonProperties, Geometry } from 'geojson';
 
 import {
   ClusterFeature,
   FeatureCollection,
+  LngLat,
   PointDatum,
   PolygonFeature,
   RouteFeature,
   TilePoint,
-  TripDatum
+  TripDatum,
+  TripPoint
 } from './types';
 import { isClusterFeature } from './data';
 
@@ -150,8 +154,11 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
         pickable: true,
         stroked: true,
         filled: true,
-        getFillColor: (feature) =>
-          getChoroplethColor(feature.properties?.value ?? 0, params.choroplethMin, params.choroplethMax),
+        getFillColor: (feature: Feature<Geometry, GeoJsonProperties>) => {
+          const properties = feature.properties as PolygonFeature['properties'] | null | undefined;
+          const value = properties?.value ?? 0;
+          return getChoroplethColor(value, params.choroplethMin, params.choroplethMax);
+        },
         getLineColor: POLY_LINE_COLOR,
         lineWidthMinPixels: 1
       })
@@ -202,7 +209,7 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
           }
           return pointRadius;
         },
-        getFillColor: (item) => {
+        getFillColor: (item: PointDatum | ClusterFeature) => {
           if ('geometry' in item && isClusterFeature(item)) {
             const count = item.properties.point_count ?? 1;
             return getClusterColor(count);
@@ -235,7 +242,7 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
           return null;
         }
 
-        const polygon = [
+        const polygon: PolygonGeometry = [
           [
             [bbox.west, bbox.south],
             [bbox.east, bbox.south],
@@ -248,7 +255,7 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
         return new SolidPolygonLayer({
           id: `${id}-grid`,
           data: [polygon],
-          getPolygon: (item) => item,
+          getPolygon: (item: PolygonGeometry) => item,
           stroked: true,
           filled: false,
           lineWidthMinPixels: 1,
@@ -269,8 +276,8 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
         coverage: HEX_COVERAGE,
         elevationScale: HEX_ELEVATION_SCALE,
         opacity: HEX_OPACITY,
-        getPosition: (item) => item.position,
-        getColorWeight: (item) => item.rating,
+        getPosition: (item: PointDatum) => item.position,
+        getColorWeight: (item: PointDatum) => item.rating,
         colorAggregation: 'MEAN',
         getElevationWeight: 1,
         elevationAggregation: 'SUM',
@@ -291,12 +298,16 @@ export function buildTripsLayer(params: TripsLayerParams): Layer | null {
     return null;
   }
 
-  return new TripsLayer<TripDatum>({
+  const TripsLayerCtor = TripsLayer as unknown as new (
+    props: TripsLayerProps<TripDatum>
+  ) => TripsLayer<TripDatum>;
+
+  return new TripsLayerCtor({
     id: 'trips',
     data: params.trips,
-    getPath: (trip): PathGeometry =>
-      trip.path.map((point) => [point.coordinates[0], point.coordinates[1]]) as unknown as PathGeometry,
-    getTimestamps: (trip) => trip.path.map((point) => point.timestamp - params.timeOffset),
+    getPath: (trip: TripDatum) => trip.path.map((point: TripPoint) => point.coordinates as LngLat),
+    getTimestamps: (trip: TripDatum) =>
+      trip.path.map((point: TripPoint) => point.timestamp - params.timeOffset),
     getColor: TRIPS_COLOR,
     opacity: TRIPS_OPACITY,
     widthMinPixels: TRIPS_WIDTH_MIN,
@@ -304,5 +315,5 @@ export function buildTripsLayer(params: TripsLayerParams): Layer | null {
     currentTime: params.currentTime - params.timeOffset,
     fadeTrail: true,
     rounded: true
-  });
+  }) as unknown as Layer;
 }

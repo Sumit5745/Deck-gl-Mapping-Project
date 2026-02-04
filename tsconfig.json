@@ -14,7 +14,8 @@
       "@deck.gl/react": ["node_modules/@deck.gl/react/typed"],
       "@deck.gl/layers": ["node_modules/@deck.gl/layers/typed"],
       "@deck.gl/geo-layers": ["node_modules/@deck.gl/geo-layers/typed"],
-      "@deck.gl/aggregation-layers": ["node_modules/@deck.gl/aggregation-layers/typed"]
+      "@deck.gl/aggregation-layers": ["node_modules/@deck.gl/aggregation-layers/typed"],
+      "maplibre-gl": ["node_modules/@types/mapbox-gl/index.d.ts"]
     },
     "isolatedModules": true,
     "noEmit": true,
