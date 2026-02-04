@@ -28,6 +28,29 @@ import type { ClusterFeature, LngLat, PointDatum, TilePoint } from './types';
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+// Magic-number references (documented for clarity + tuning).
+const DEFAULT_VIEW_STATE: MapViewState = {
+  // SF downtown focus for demo.
+  longitude: -122.406417,
+  latitude: 37.785834,
+  zoom: 12.5,
+  pitch: 40,
+  bearing: -10
+};
+const LARGE_DATASET_COUNT = 10000; // 10k points for perf testing.
+const CLUSTER_RADIUS_PX = 60; // Supercluster radius in pixels.
+const CLUSTER_MAX_ZOOM = 16; // Stop clustering beyond this zoom.
+const TRIPS_LOOP_DURATION_MS = 18000; // Full trip playback loop duration.
+const FPS_SAMPLE_WINDOW_MS = 1000; // FPS update interval.
+const TILE_COUNT_MIN = 24; // Min tile points per tile (low zoom).
+const TILE_COUNT_MAX = 100; // Max tile points per tile (high zoom).
+const TILE_COUNT_ZOOM_OFFSET = 10; // Zoom offset before tiles densify.
+const TILE_COUNT_ZOOM_SCALE = 18; // Points added per zoom step.
+const TRIPS_TRAIL_MIN_MS = 20000; // Minimum trail length for visibility.
+const TRIPS_TRAIL_FRACTION = 0.35; // Fraction of trip duration used for trail.
+const FOCUS_ZOOM_MIN = 14; // Zoom level when focusing a clicked feature.
+const FOCUS_TRANSITION_MS = 800; // Camera transition duration.
+
 function useWindowSize() {
   const [size, setSize] = useState({
     width: window.innerWidth,
@@ -83,13 +106,7 @@ function getFocusPosition(object: any, layerId: string | null): LngLat | null {
 }
 
 export default function App() {
-  const [viewState, setViewState] = useState<MapViewState>({
-    longitude: -122.406417,
-    latitude: 37.785834,
-    zoom: 12.5,
-    pitch: 40,
-    bearing: -10
-  });
+  const [viewState, setViewState] = useState<MapViewState>(DEFAULT_VIEW_STATE);
 
   const size = useWindowSize();
   const [hoverInfo, setHoverInfo] = useState<TooltipInfo | null>(null);
@@ -104,7 +121,7 @@ export default function App() {
   const [useLargeDataset, setUseLargeDataset] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState(CATEGORY_OPTIONS[0]);
 
-  const largePoints = useMemo(() => generateRandomPoints(10000), []);
+  const largePoints = useMemo(() => generateRandomPoints(LARGE_DATASET_COUNT), []);
   const activePoints = useMemo(() => {
     const points = useLargeDataset ? largePoints : SAMPLE_POINTS;
     if (categoryFilter === 'all') {
@@ -128,8 +145,8 @@ export default function App() {
 
   const clusterIndex = useMemo(() => {
     const index = new Supercluster({
-      radius: 60,
-      maxZoom: 16
+      radius: CLUSTER_RADIUS_PX,
+      maxZoom: CLUSTER_MAX_ZOOM
     });
     index.load(clusterPoints);
     return index;
@@ -145,13 +162,20 @@ export default function App() {
   }, [viewState, size]);
 
   const clusters = useMemo(() => {
-    if (!clusterEnabled) {
+    try {
+      if (!clusterEnabled) {
+        return [] as ClusterFeature[];
+      }
+
+      const result = clusterIndex.getClusters(
+        bounds as [number, number, number, number],
+        Math.round(viewState.zoom)
+      );
+      return (result || []) as ClusterFeature[] | [];
+    } catch (error) {
+      console.error('Clustering failed:', error);
       return [] as ClusterFeature[];
     }
-
-    return clusterIndex.getClusters(bounds as [number, number, number, number], Math.round(viewState.zoom)) as
-      | ClusterFeature[]
-      | [];
   }, [clusterEnabled, clusterIndex, bounds, viewState.zoom]);
 
   const choroplethRange = useMemo(() => getPolygonValueRange(SAMPLE_POLYGONS), []);
@@ -179,7 +203,7 @@ export default function App() {
 
     let animationFrame = 0;
     let last = performance.now();
-    const loopDuration = 18000;
+    const loopDuration = TRIPS_LOOP_DURATION_MS;
     const speed = duration / loopDuration;
 
     const step = (now: number) => {
@@ -205,8 +229,8 @@ export default function App() {
 
     const loop = (now: number) => {
       frames += 1;
-      if (now - last >= 1000) {
-        setFps(Math.round((frames * 1000) / (now - last)));
+      if (now - last >= FPS_SAMPLE_WINDOW_MS) {
+        setFps(Math.round((frames * FPS_SAMPLE_WINDOW_MS) / (now - last)));
         frames = 0;
         last = now;
       }
@@ -220,31 +244,39 @@ export default function App() {
 
   const getTileData = useCallback(
     (tile: TileLoadProps) => {
-      if (!('west' in tile.bbox)) {
+      try {
+        if (!('west' in tile.bbox)) {
+          return [];
+        }
+
+        const key = `${tile.index.z}/${tile.index.x}/${tile.index.y}`;
+        const cached = tileCacheRef.current.get(key);
+        if (cached) {
+          return cached;
+        }
+
+        const bbox: [number, number, number, number] = [
+          tile.bbox.west,
+          tile.bbox.south,
+          tile.bbox.east,
+          tile.bbox.north
+        ];
+        const zoom = tile.index?.z ?? 0;
+        const count = Math.min(
+          TILE_COUNT_MAX,
+          Math.max(TILE_COUNT_MIN, Math.round((zoom - TILE_COUNT_ZOOM_OFFSET) * TILE_COUNT_ZOOM_SCALE))
+        );
+        const points = generateTilePoints(bbox, count, key);
+        tileCacheRef.current.set(key, points);
+        setTileCacheCount((previous) => {
+          const next = tileCacheRef.current.size;
+          return previous === next ? previous : next;
+        });
+        return points;
+      } catch (error) {
+        console.error('Tile generation failed:', error);
         return [];
       }
-
-      const key = `${tile.index.z}/${tile.index.x}/${tile.index.y}`;
-      const cached = tileCacheRef.current.get(key);
-      if (cached) {
-        return cached;
-      }
-
-      const bbox: [number, number, number, number] = [
-        tile.bbox.west,
-        tile.bbox.south,
-        tile.bbox.east,
-        tile.bbox.north
-      ];
-      const zoom = tile.index?.z ?? 0;
-      const count = Math.min(100, Math.max(24, Math.round((zoom - 10) * 18)));
-      const points = generateTilePoints(bbox, count, key);
-      tileCacheRef.current.set(key, points);
-      setTileCacheCount((previous) => {
-        const next = tileCacheRef.current.size;
-        return previous === next ? previous : next;
-      });
-      return points;
     },
     [setTileCacheCount]
   );
@@ -278,7 +310,7 @@ export default function App() {
   ]);
 
   const tripDuration = tripRange.end - tripRange.start;
-  const trailLength = Math.max(20000, tripDuration * 0.35);
+  const trailLength = Math.max(TRIPS_TRAIL_MIN_MS, tripDuration * TRIPS_TRAIL_FRACTION);
 
   const tripsLayer = useMemo(
     () =>
@@ -328,8 +360,8 @@ export default function App() {
         ...previous,
         longitude: target[0],
         latitude: target[1],
-        zoom: Math.max(previous.zoom, 14),
-        transitionDuration: 800
+        zoom: Math.max(previous.zoom, FOCUS_ZOOM_MIN),
+        transitionDuration: FOCUS_TRANSITION_MS
       }));
     },
     [setViewState]

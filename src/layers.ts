@@ -24,22 +24,75 @@ export const CATEGORY_COLORS: Record<string, [number, number, number]> = {
   shop: [162, 155, 254]
 };
 
+// Magic-number references .
+const CATEGORY_ALPHA = 200; // Default point alpha channel.
+const CLUSTER_COLOR_THRESHOLDS = [100, 50, 20]; // Count thresholds for cluster colors.
+const CLUSTER_COLORS: [number, number, number, number][] = [
+  [99, 102, 241, 220],
+  [59, 130, 246, 220],
+  [14, 165, 233, 220],
+  [56, 189, 248, 200]
+];
+const CHORO_START: [number, number, number] = [226, 232, 240];
+const CHORO_END: [number, number, number] = [52, 211, 153];
+const CHORO_ALPHA = 200;
+const POLY_LINE_COLOR: [number, number, number, number] = [15, 23, 42, 150];
+const ROUTE_WIDTH_SCALE = 15; // Volume divisor to scale arc width.
+const ROUTE_WIDTH_MIN = 2; // Minimum visible arc width.
+const ROUTE_SOURCE_COLOR: [number, number, number, number] = [59, 130, 246, 200];
+const ROUTE_TARGET_COLOR: [number, number, number, number] = [250, 204, 21, 200];
+const POINT_OPACITY_HEX = 0.12; // Dim points so hexagons are visible.
+const POINT_OPACITY_DEFAULT = 1;
+const CLUSTER_SCALE_HEX = 1.2;
+const CLUSTER_SCALE_DEFAULT = 4;
+const POINT_RADIUS_HEX = 3;
+const POINT_RADIUS_DEFAULT = 6;
+const POINT_STROKE_COLOR: [number, number, number, number] = [15, 23, 42, 180];
+const TILE_SIZE_PX = 256;
+const TILE_CACHE_MAX = 180;
+const TILE_MAX_REQUESTS = 8;
+const HEX_RADIUS = 180; // meters
+const HEX_COVERAGE = 0.9;
+const HEX_ELEVATION_SCALE = 50;
+const HEX_OPACITY = 0.8;
+const HEX_COLOR_RANGE: [number, number, number][] = [
+  [255, 247, 237],
+  [254, 215, 170],
+  [253, 186, 116],
+  [249, 115, 22],
+  [234, 88, 12]
+];
+const HEX_MATERIAL: {
+  ambient: number;
+  diffuse: number;
+  shininess: number;
+  specularColor: [number, number, number];
+} = {
+  ambient: 0.2,
+  diffuse: 0.7,
+  shininess: 16,
+  specularColor: [255, 255, 255]
+};
+const TRIPS_COLOR: [number, number, number] = [14, 116, 144];
+const TRIPS_OPACITY = 0.9;
+const TRIPS_WIDTH_MIN = 3;
+
 export function getCategoryColor(category: string): [number, number, number, number] {
   const rgb = CATEGORY_COLORS[category] ?? [148, 163, 184];
-  return [...rgb, 200];
+  return [...rgb, CATEGORY_ALPHA];
 }
 
 export function getClusterColor(count: number): [number, number, number, number] {
-  if (count > 100) {
-    return [99, 102, 241, 220];
+  if (count > CLUSTER_COLOR_THRESHOLDS[0]) {
+    return CLUSTER_COLORS[0];
   }
-  if (count > 50) {
-    return [59, 130, 246, 220];
+  if (count > CLUSTER_COLOR_THRESHOLDS[1]) {
+    return CLUSTER_COLORS[1];
   }
-  if (count > 20) {
-    return [14, 165, 233, 220];
+  if (count > CLUSTER_COLOR_THRESHOLDS[2]) {
+    return CLUSTER_COLORS[2];
   }
-  return [56, 189, 248, 200];
+  return CLUSTER_COLORS[3];
 }
 
 export function getChoroplethColor(
@@ -52,14 +105,14 @@ export function getChoroplethColor(
   }
 
   const t = Math.min(1, Math.max(0, (value - min) / (max - min)));
-  const start: [number, number, number] = [226, 232, 240];
-  const end: [number, number, number] = [52, 211, 153];
+  const start: [number, number, number] = CHORO_START;
+  const end: [number, number, number] = CHORO_END;
 
   const r = Math.round(start[0] + (end[0] - start[0]) * t);
   const g = Math.round(start[1] + (end[1] - start[1]) * t);
   const b = Math.round(start[2] + (end[2] - start[2]) * t);
 
-  return [r, g, b, 200];
+  return [r, g, b, CHORO_ALPHA];
 }
 
 export type BaseLayersParams = {
@@ -98,7 +151,7 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
         filled: true,
         getFillColor: (feature) =>
           getChoroplethColor(feature.properties?.value ?? 0, params.choroplethMin, params.choroplethMax),
-        getLineColor: [15, 23, 42, 150],
+        getLineColor: POLY_LINE_COLOR,
         lineWidthMinPixels: 1
       })
     );
@@ -114,19 +167,19 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
         getSourcePosition: (feature: RouteFeature) => feature.geometry.coordinates[0],
         getTargetPosition: (feature: RouteFeature) =>
           feature.geometry.coordinates[feature.geometry.coordinates.length - 1],
-        getWidth: (feature: RouteFeature) => Math.max(2, feature.properties.volume / 15),
-        widthMinPixels: 2,
-        getSourceColor: [59, 130, 246, 200],
-        getTargetColor: [250, 204, 21, 200]
+        getWidth: (feature: RouteFeature) => Math.max(ROUTE_WIDTH_MIN, feature.properties.volume / ROUTE_WIDTH_SCALE),
+        widthMinPixels: ROUTE_WIDTH_MIN,
+        getSourceColor: ROUTE_SOURCE_COLOR,
+        getTargetColor: ROUTE_TARGET_COLOR
       })
     );
   }
 
   if (params.showPoints) {
     const data = params.showClusters ? params.clusters : params.points;
-    const pointOpacity = params.showHexagon ? 0.12 : 1;
-    const clusterScale = params.showHexagon ? 1.2 : 4;
-    const pointRadius = params.showHexagon ? 3 : 6;
+    const pointOpacity = params.showHexagon ? POINT_OPACITY_HEX : POINT_OPACITY_DEFAULT;
+    const clusterScale = params.showHexagon ? CLUSTER_SCALE_HEX : CLUSTER_SCALE_DEFAULT;
+    const pointRadius = params.showHexagon ? POINT_RADIUS_HEX : POINT_RADIUS_DEFAULT;
 
     layers.push(
       new ScatterplotLayer<PointDatum | ClusterFeature>({
@@ -158,7 +211,7 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
             | undefined;
           return getCategoryColor(category ?? '');
         },
-        getLineColor: [15, 23, 42, 180],
+        getLineColor: POINT_STROKE_COLOR,
         lineWidthMinPixels: params.showHexagon ? 0 : 1
       })
     );
@@ -169,9 +222,9 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
       id: 'tile-layer',
       data: 'tile-cache',
       pickable: false,
-      tileSize: 256,
-      maxCacheSize: 180,
-      maxRequests: 8,
+      tileSize: TILE_SIZE_PX,
+      maxCacheSize: TILE_CACHE_MAX,
+      maxRequests: TILE_MAX_REQUESTS,
       getTileData: params.getTileData,
       renderSubLayers: () => null
     })
@@ -184,30 +237,19 @@ export function buildBaseLayers(params: BaseLayersParams): Layer[] {
         data: params.points,
         pickable: true,
         extruded: true,
-        radius: 180,
-        coverage: 0.9,
-        elevationScale: 50,
-        opacity: 0.8,
+        radius: HEX_RADIUS,
+        coverage: HEX_COVERAGE,
+        elevationScale: HEX_ELEVATION_SCALE,
+        opacity: HEX_OPACITY,
         getPosition: (item) => item.position,
         getColorWeight: (item) => item.rating,
         colorAggregation: 'MEAN',
         getElevationWeight: 1,
         elevationAggregation: 'SUM',
-        colorRange: [
-          [255, 247, 237],
-          [254, 215, 170],
-          [253, 186, 116],
-          [249, 115, 22],
-          [234, 88, 12]
-        ],
-        material: {
-          ambient: 0.2,
-          diffuse: 0.7,
-          shininess: 16,
-          specularColor: [255, 255, 255]
-        },
+        colorRange: HEX_COLOR_RANGE,
+        material: HEX_MATERIAL,
         parameters: {
-          depthTest: false
+          depthTest: true
         }
       })
     );
@@ -226,9 +268,9 @@ export function buildTripsLayer(params: TripsLayerParams): Layer | null {
     data: params.trips,
     getPath: (trip): PathGeometry => trip.path.map((point) => [point[0], point[1]]) as unknown as PathGeometry,
     getTimestamps: (trip) => trip.path.map((point) => point[2] - params.timeOffset),
-    getColor: [14, 116, 144],
-    opacity: 0.9,
-    widthMinPixels: 3,
+    getColor: TRIPS_COLOR,
+    opacity: TRIPS_OPACITY,
+    widthMinPixels: TRIPS_WIDTH_MIN,
     trailLength: params.trailLength,
     currentTime: params.currentTime - params.timeOffset,
     fadeTrail: true,
